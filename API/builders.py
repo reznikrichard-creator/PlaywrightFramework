@@ -1,7 +1,7 @@
 from uuid import uuid4
 
 
-def make_booking(**overides): 
+def make_booking(**overrides): 
     uuid = uuid4().hex[:8]
     booking = {
         "firstname" : f"Jim                 {uuid}",
@@ -15,7 +15,7 @@ def make_booking(**overides):
         "additionalneeds" : "Breakfast"
         }
 
-    booking.update(overides)
+    booking.update(overrides)
     return booking
 
 # make_booking()
