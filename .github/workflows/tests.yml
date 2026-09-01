@@ -56,112 +56,112 @@ jobs:
 
 # ------------------------------------------------------ reports
 
-report:
-  name: Publish Allure report
-  needs: [api, ui]  # wait for BOTH
+  report:
+    name: Publish Allure report
+    needs: [api, ui]      # wait for BOTH
 
-  # A report that only publishes on green is useless: the run you most want
-  # to read is the failing one.
-  if: always()
-  runs-on: ubuntu-latest
+    # A report that only publishes on green is useless: the run you most want
+    # to read is the failing one.
+    if: always()
+    runs-on: ubuntu-latest
 
-  steps:
-    - uses: actions/checkout@v4  # we need scripts/ and allure/
+    steps:
+      - uses: actions/checkout@v4       # we need scripts/ and allure/
 
-    # pattern + merge-multiple pulls allure-results-api AND allure-results-ui
-    # into ONE folder. Allure never knows they came from different machines.
-    - name: Download results from both lanes
-      uses: actions/download-artifact@v4
-      with:
-        pattern: allure-results-*
-        merge-multiple: true
-        path: allure-results
+      # pattern + merge-multiple pulls allure-results-api AND allure-results-ui
+      # into ONE folder. Allure never knows they came from different machines.
+      - name: Download results from both lanes
+        uses: actions/download-artifact@v4
+        with:
+          pattern: allure-results-*
+          merge-multiple: true
+          path: allure-results
 
-    # How failures get grouped in the report: product defect vs test defect
-    # vs flaky external dependency.
-    - name: Add failure categories
-      run: cp allure/categories.json allure-results/ || true
+      # How failures get grouped in the report: product defect vs test defect
+      # vs flaky external dependency.
+      - name: Add failure categories
+        run: cp allure/categories.json allure-results/ || true
 
-    # The existing site carries the history that makes trend graphs work.
-    # The very first run has no gh-pages branch yet, hence continue-on-error.
-    - name: Fetch previous report history
-      uses: actions/checkout@v4
-      continue-on-error: true
-      with:
-        ref: gh-pages
-        path: gh-pages
+      # The existing site carries the history that makes trend graphs work.
+      # The very first run has no gh-pages branch yet, hence continue-on-error.
+      - name: Fetch previous report history
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: gh-pages
+          path: gh-pages
 
-    # THE line that turns a report into a record.
-    - name: Restore history into the results
-      run: |
-        mkdir -p allure-results/history
-        if [ -d gh-pages/last-history ]; then
-          cp -r gh-pages/last-history/. allure-results/history/
-          echo "Carried forward $(ls -1 allure-results/history | wc -l) history files."
-        else
-          echo "No previous history -- trends start from this run."
-        fi
-
-    # Makes the report link back to the run that produced it.
-    - name: Describe the executor
-      run: |
-        PAGES="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
-        cat > allure-results/executor.json <<JSON
-        {
-          "name": "GitHub Actions",
-          "type": "github",
-          "reportName": "${{ github.event.repository.name }}",
-          "url": "${PAGES}",
-          "reportUrl": "${PAGES}/${{ github.run_number }}/",
-          "buildUrl": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-          "buildName": "Run #${{ github.run_number }}",
-          "buildOrder": ${{ github.run_number }}
-        }
-        JSON
-
-    # The Allure CLI is a Java application.
-    - uses: actions/setup-java@v4
-      with:
-        distribution: temurin
-        java-version: "17"
-
-    - name: Install Allure CLI
-      run: |
-        curl -sSL --retry 3 -o allure.tgz \
-          "https://github.com/allure-framework/allure2/releases/download/${ALLURE_VERSION}/allure-${ALLURE_VERSION}.tgz"
-        tar -xzf allure.tgz
-        echo "$PWD/allure-${ALLURE_VERSION}/bin" >> "$GITHUB_PATH"
-
-    - name: Generate report
-      run: allure generate allure-results --clean -o allure-report
-
-    # Builds site/: numbered run folders, latest/, last-history/, redirect.
-    - name: Assemble the site
-      run: |
-        chmod +x scripts/assemble_allure_site.sh
-        scripts/assemble_allure_site.sh \
-          allure-report gh-pages site "${{ github.run_number }}" 30
-
-    # Branches run the tests. Only master changes what the world sees.
-    - name: Publish to GitHub Pages
-      if: github.ref == 'refs/heads/master'
-      uses: peaceiris/actions-gh-pages@v4
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}  # provided automatically
-        publish_branch: gh-pages
-        publish_dir: site
-
-    - name: Link the report from the run page
-      if: always()
-      run: |
-        PAGES="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
-        {
-          echo "## Allure report"
-          echo ""
-          if [ "${{ github.ref }}" = "refs/heads/master" ]; then
-            echo "- [Latest report](${PAGES}/latest/)"
-            echo "- [This run (#${{ github.run_number }})](${PAGES}/${{ github.run_number }}/)"
+      # THE line that turns a report into a record.
+      - name: Restore history into the results
+        run: |
+          mkdir -p allure-results/history
+          if [ -d gh-pages/last-history ]; then
+            cp -r gh-pages/last-history/. allure-results/history/
+            echo "Carried forward $(ls -1 allure-results/history | wc -l) history files."
           else
-            echo "_Not published — only \`master\` publishes to Pages._"
+            echo "No previous history -- trends start from this run."
           fi
-        } >> "$GITHUB_STEP_SUMMARY"
+
+      # Makes the report link back to the run that produced it.
+      - name: Describe the executor
+        run: |
+          PAGES="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
+          cat > allure-results/executor.json <<JSON
+          {
+            "name": "GitHub Actions",
+            "type": "github",
+            "reportName": "${{ github.event.repository.name }}",
+            "url": "${PAGES}",
+            "reportUrl": "${PAGES}/${{ github.run_number }}/",
+            "buildUrl": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+            "buildName": "Run #${{ github.run_number }}",
+            "buildOrder": ${{ github.run_number }}
+          }
+          JSON
+
+      # The Allure CLI is a Java application.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Allure CLI
+        run: |
+          curl -sSL --retry 3 -o allure.tgz \
+            "https://github.com/allure-framework/allure2/releases/download/${ALLURE_VERSION}/allure-${ALLURE_VERSION}.tgz"
+          tar -xzf allure.tgz
+          echo "$PWD/allure-${ALLURE_VERSION}/bin" >> "$GITHUB_PATH"
+
+      - name: Generate report
+        run: allure generate allure-results --clean -o allure-report
+
+      # Builds site/: numbered run folders, latest/, last-history/, redirect.
+      - name: Assemble the site
+        run: |
+          chmod +x scripts/assemble_allure_site.sh
+          scripts/assemble_allure_site.sh \
+            allure-report gh-pages site "${{ github.run_number }}" 30
+
+      # Branches run the tests. Only master changes what the world sees.
+      - name: Publish to GitHub Pages
+        if: github.ref == 'refs/heads/master'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}   # provided automatically
+          publish_branch: gh-pages
+          publish_dir: site
+
+      - name: Link the report from the run page
+        if: always()
+        run: |
+          PAGES="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
+          {
+            echo "## Allure report"
+            echo ""
+            if [ "${{ github.ref }}" = "refs/heads/master" ]; then
+              echo "- [Latest report](${PAGES}/latest/)"
+              echo "- [This run (#${{ github.run_number }})](${PAGES}/${{ github.run_number }}/)"
+            else
+              echo "_Not published — only \`master\` publishes to Pages._"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
