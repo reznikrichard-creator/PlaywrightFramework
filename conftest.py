@@ -7,6 +7,8 @@ from pages.CheckoutPage import CheckoutPage
 from pages.LoginPage import LoginPage
 from pages.InventoryPage import InventoryPage
 
+pytest_plugins = ["support.allure_hooks"]
+
 load_dotenv()
 
 USERNAME = os.getenv("SAUCE_USERNAME")
